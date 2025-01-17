@@ -1,0 +1,102 @@
+ANALIZA DANYCH
+
+1. Znajdź najpopularniejsze rodzaje wycieczek, porównaj koszta i zyski, czy są opłacalne?
+
+KOD SQL:
+SELECT 
+  zrealizowane.id_wycieczki, 
+  COUNT(zrealizowane.id_wycieczki) AS ile_razy_dana_wycieczka, 
+  SUM(zrealizowane.liczba_uczestników) AS liczba_uczestników,
+  SUM(zrealizowane.liczba_uczestników * rodzaje.koszt_udzialu) AS zyski,
+  COUNT(zrealizowane.id_wycieczki) * rodzaje.koszt_organizacji AS straty,
+  SUM(zrealizowane.liczba_uczestników * rodzaje.koszt_udzialu) - COUNT(zrealizowane.id_wycieczki) * rodzaje.koszt_organizacji AS łączny_zysk
+FROM 
+  zrealizowane 
+JOIN 
+  rodzaje ON rodzaje.id_wycieczki = zrealizowane.id_wycieczki
+GROUP BY 
+  zrealizowane.id_wycieczki, rodzaje.koszt_organizacji
+ORDER BY 
+  ile_razy_dana_wycieczka DESC, liczba_uczestników DESC;
+
+
+WNIOSKI:
+- Najpopularniejsza wycieczka to ta o id = 6 - Tyrolka z Mostu Zwierzynieckiego, później id = 4, resztę wycieczek zorganizowano po 2 razy
+- Każdy rodzaj wycieczki jest opłacalny dla firmy
+- Najwięcej zysku (15 350) przynosi wycieczka o id = 4 - Lot motoparalotnią nad Wrocławiem, a najmniej wycieczka o id = 1 - Spacer po dachach Wrocławia
+
+
+
+2. Sporządź wykres liczby obsłużonych klientów w każdym miesiącu działalności firmy, czy firma rośnie, czy podupada?
+
+KOD SQL:
+SELECT 
+  CONCAT(LPAD(MONTH(data_wyjazdu), 2, '0'), '-', YEAR(data_wyjazdu)) AS miesiac_realizacji,
+  SUM(liczba_uczestników) AS liczba_uczestników
+FROM 
+  zrealizowane 
+GROUP BY 
+  YEAR(data_wyjazdu), MONTH(data_wyjazdu)
+ORDER BY 
+  YEAR(data_wyjazdu), MONTH(data_wyjazdu) ASC;
+
+WNIOSKI:
+- Liczba obsłużonych klientów wyniosła najwięcej w lipcu - 220
+- Firma rośnie, ale są miesiące, gdzie liczba obsłużonych klientów trochę spada.
+
+
+
+3. Sprawdź, po których wycieczkach klienci wracają na kolejne, a po których mają dość i więcej ich nie widzicie. Czy są takie, które być może powinny zniknąć z oferty?
+
+Dla każdej wycieczki sprawdzamy ile razy po niej wrócono i ile razy nie wrócono. Obliczamy wartość procentową, ponieważ na każdą wycieczkę pojechała różna ilość osób, więc bez tego ciężko określić, po której wycieczce ludzie najczęściej wracali.
+
+KOD SQL:
+WITH WycieczkiKlienta AS (
+  SELECT 
+    klienci.id_klienta,
+    zrealizowane.id_wycieczki,
+    zrealizowane.data_wyjazdu,
+    ROW_NUMBER() OVER (PARTITION BY klienci.id_klienta ORDER BY zrealizowane.data_wyjazdu) AS numer_wycieczki,
+    LEAD(zrealizowane.data_wyjazdu) OVER (PARTITION BY klienci.id_klienta ORDER BY zrealizowane.data_wyjazdu) AS data_nastepnej_wycieczki
+  FROM 
+    klienci
+  LEFT JOIN
+    transakcje_klienci ON klienci.id_klienta = transakcje_klienci.id_klienta
+  LEFT JOIN
+    zrealizowane ON zrealizowane.id_eventu = transakcje_klienci.id_eventu
+)
+SELECT 
+  id_wycieczki,
+  COUNT(CASE WHEN data_nastepnej_wycieczki IS NOT NULL THEN 1 END) AS liczba_powrotów_po_tej_wycieczce,
+  COUNT(CASE WHEN data_nastepnej_wycieczki IS NULL THEN 1 END) AS brak_powrotu_po_tej_wycieczce,
+  COUNT(DISTINCT klienci.id_klienta) AS liczba_uczestnikow,  -- Całkowita liczba uczestników wycieczki
+  ROUND(100.0 * COUNT(CASE WHEN data_nastepnej_wycieczki IS NOT NULL THEN 1 END) / COUNT(DISTINCT klienci.id_klienta), 2) AS procent_powrotów,
+  ROUND(100.0 * COUNT(CASE WHEN data_nastepnej_wycieczki IS NULL THEN 1 END) / COUNT(DISTINCT klienci.id_klienta), 2) AS procent_braku_powrotu
+FROM 
+  WycieczkiKlienta
+LEFT JOIN 
+  klienci ON klienci.id_klienta = WycieczkiKlienta.id_klienta  -- Dodanie tej części, by liczyć uczestników
+WHERE 
+  id_wycieczki IS NOT NULL
+GROUP BY 
+  id_wycieczki
+ORDER BY 
+  id_wycieczki;
+
+
+WNIOSKI:
+- Największy procent powrotu ma wycieczka o id 2, bo aż 71,21% klientów wróciło po niej na kolejną wycieczkę
+- Po wycieczce o id = 1 klienci najczęściej nie wracali - 76,67%, później o id = 6 - 73,05%
+- Ogólnie częściej nie wracali niż wracali :(
+
+
+
+
+
+
+
+
+
+
+
+
