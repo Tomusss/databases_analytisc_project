@@ -91,8 +91,83 @@ WNIOSKI:
 
 
 
+4. Jak cena wycieczki wpływa na częstotliwość jej wyboru przez klientów? Jak proporcjonalnie obniżyć ceny wszystkich wycieczek tak, by dotychczasowe zyski firmy nie zmniejszyły się o więcej niż 30%?
+5. Którzy pracownicy obsługujący wycieczki generują największą ilość rezerwacji wycieczek przez klientów?
+6. Może byśmy dodali do tabeli klienci info o ich wieku między np. 18-60 i pytanie: W jakim przedziale wiekowym są klienci najczęściej decydujący się na skorzystanie z usług naszej firmy?
+8. Można dodać do tabeli klienci zniżkę (np. studencką, zniżka pracownika firmy partnerskiej, zniżka za wygraną w konkursie, zniżka dla członka rodziny pracownika firmy)(tylko nie takie typu urodzinowa itp - bo żeby była że klient na każdą wycieczkę ma zniżkę, bez względu na ile pojedzie) i pytanie:  Czy posiadana przez klienta zniżka sprawia, że wybiera on dane wycieczki częściej niż osoby bez zniżek?
+9. ??? Które koszty związane z danymi wycieczkami stanowią największe obciążenie finansowe dla firmy? Czy istnieją wycieczki, których usunięcie z oferty mogłoby przyczynić się do zwiększenia ogólnych zysków?
 
 
+
+4. Jak cena wycieczki wpływa na częstotliwość jej wyboru przez klientów? Raczej bez tego: Jak proporcjonalnie obniżyć ceny wszystkich wycieczek tak, by dotychczasowe zyski firmy nie zmniejszyły się o więcej niż 30%?
+
+KOD SQL:
+SELECT 
+   rodzaje.koszt_udzialu AS cena_wycieczki,
+   SUM(zrealizowane.liczba_uczestników) AS liczba_uczestników,
+   ROUND(SUM(zrealizowane.liczba_uczestników) * 100.0 / (SELECT SUM(liczba_uczestników) FROM zrealizowane), 2) AS procent_uczestników
+FROM 
+   zrealizowane
+JOIN 
+   rodzaje ON zrealizowane.id_wycieczki = rodzaje.id_wycieczki
+GROUP BY 
+   rodzaje.koszt_udzialu
+ORDER BY 
+   liczba_uczestników DESC;
+
+WNIOSKI:
+- Tańsze wycieczki mają dużo większe zainteresowanie od tych drogich
+
+
+
+5. Którzy pracownicy obsługujący wycieczki generują największą ilość rezerwacji wycieczek przez klientów?
+
+KOD SQL:
+SELECT 
+   pracownicy.id_pracownika,
+   pracownicy.imię,
+   pracownicy.nazwisko,
+   COUNT(zrealizowane.id_eventu) AS liczba_rezerwacji,
+   SUM(zrealizowane.liczba_uczestników) AS liczba_uczestników
+FROM 
+   zrealizowane
+JOIN 
+   pracownicy ON zrealizowane.id_pracownika = pracownicy.id_pracownika
+GROUP BY 
+   pracownicy.id_pracownika, pracownicy.nazwisko
+ORDER BY 
+   liczba_rezerwacji DESC, liczba_uczestników DESC;
+
+
+
+
+
+
+
+
+9.Które koszty związane z danymi wycieczkami stanowią największe obciążenie finansowe dla firmy? Czy istnieją wycieczki, których usunięcie z oferty mogłoby przyczynić się do zwiększenia ogólnych zysków?
+
+KOD SQL:
+SELECT 
+   rodzaje.id_wycieczki,
+   rodzaje.nazwa_wycieczki,
+   COUNT(zrealizowane.id_wycieczki) * rodzaje.koszt_organizacji AS koszt_organizacji,
+   SUM(zrealizowane.liczba_uczestników * rodzaje.koszt_udzialu) AS przychód,
+   SUM(zrealizowane.liczba_uczestników * rodzaje.koszt_udzialu) - COUNT(zrealizowane.id_wycieczki) * rodzaje.koszt_organizacji AS łączny_zysk,
+   ROUND(
+   (SUM(zrealizowane.liczba_uczestników * rodzaje.koszt_udzialu) - COUNT(zrealizowane.id_wycieczki) * rodzaje.koszt_organizacji) * 100.0 / 
+	SUM(zrealizowane.liczba_uczestników * rodzaje.koszt_udzialu), 2) AS procentowy_zysk
+FROM 
+   zrealizowane
+JOIN 
+   rodzaje ON zrealizowane.id_wycieczki = rodzaje.id_wycieczki
+GROUP BY 
+   rodzaje.id_wycieczki, rodzaje.nazwa_wycieczki
+ORDER BY 
+   procentowy_zysk ASC;
+
+WNIOSKI:
+- Wszystkie wycieczki są opłacalne, dają powyżej 30% zysku, najmniej opłacalną jest Spacer po dachach Wrocławia. Usunięcie jej zwiększyłoby zyski.
 
 
 
