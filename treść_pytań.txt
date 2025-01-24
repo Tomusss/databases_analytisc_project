@@ -1,0 +1,16 @@
+PYTANIA
+1. Znajdź najpopularniejsze rodzaje wycieczek, porównaj koszta i zyski, czy są opłacalne?
+
+2. Sporządź wykres liczby obsłużonych klientów w każdym miesiącu działalności firmy, czy firma rośnie, czy podupada?
+
+3. Sprawdź, po których wycieczkach klienci wracają na kolejne, a po których mają dość i więcej ich nie widzicie. Czy są takie, które być może powinny zniknąć z oferty?
+
+4. Jak cena wycieczki wpływa na częstotliwość jej wyboru przez klientów?
+
+5. Którzy pracownicy obsługujący wycieczki generują największą ilość rezerwacji wycieczek przez klientów?
+
+6. W jakim przedziale wiekowym są klienci najczęściej decydujący się na skorzystanie z usług firmy?
+
+7. Czy posiadana przez klienta zniżka sprawia, że wybiera on dane wycieczki częściej niż osoby bez zniżek?
+
+Tu jeszcze dopiszę jakieś
