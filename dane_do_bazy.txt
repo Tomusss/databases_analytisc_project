@@ -1,0 +1,4 @@
+Dane do połączenia się z bazą: 
+login: team09
+hasło: te@mzaoq
+baza: team09
