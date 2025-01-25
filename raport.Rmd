@@ -1,0 +1,517 @@
+---
+title: "Analiza danych - raport"
+author: "Borowiak Maria, Foriasz Olga, Klaman Zuzanna, Martynów Mateusz, Warzecha Tomasz"
+date: "2025-01-24"
+output: 
+  html_document:
+    toc: true
+    number_sections: true
+
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+options(repos = c(CRAN = "https://cran.rstudio.com/"))
+```
+
+
+# Znajdź najpopularniejsze rodzaje wycieczek, porównaj koszta i zyski, czy są opłacalne?
+
+```{r, warning=FALSE, results='asis', echo=FALSE}
+library(RMariaDB)
+library(DBI)
+library(kableExtra)
+
+con <- dbConnect(RMariaDB::MariaDB(),
+                 dbname = "team09",
+                 username = "team09",
+                 password = "te@mzaoq",
+                 host = "giniewicz.it")
+
+query <- "SELECT 
+   zrealizowane.id_wycieczki, 
+   rodzaje.nazwa_wycieczki,
+   SUM(transakcje_klienci.koszt_udziału) AS dochód_z_wycieczki,
+   rodzaje.koszt_organizacji * COUNT(DISTINCT zrealizowane.id_eventu) AS koszt_organizacji_wycieczki,
+   SUM(transakcje_klienci.koszt_udziału) - rodzaje.koszt_organizacji * COUNT(DISTINCT zrealizowane.id_eventu) AS łączny_zysk_z_wycieczki
+FROM 
+   transakcje_klienci 
+JOIN 
+   zrealizowane ON transakcje_klienci.id_eventu = zrealizowane.id_eventu
+JOIN 
+   transakcje_firma ON transakcje_firma.id_eventu = zrealizowane.id_eventu
+JOIN 
+   rodzaje ON rodzaje.id_wycieczki = zrealizowane.id_wycieczki
+GROUP BY 
+   zrealizowane.id_wycieczki, rodzaje.koszt_organizacji
+ORDER BY
+   łączny_zysk_z_wycieczki DESC;"
+
+df <- dbGetQuery(con, query)
+
+df %>%
+  head(10) %>%  
+  kbl(caption = "Porównanie kosztów i zysków wycieczek", align = "c", 
+      col.names = c("ID Wycieczki", "Nazwa Wycieczki", "Dochód z Wycieczki", "Koszt Organizacji Wycieczki", "Łączny Zysk z Wycieczki")) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover", "condensed"))
+
+dbDisconnect(con)
+
+```
+
+**Wnioski dotyczące najpopularniejszych wycieczek i ich opłacalności**
+
+1. **Najbardziej dochodowa wycieczka:**
+   * Podwodna ekspedycja w Odrze wygenerowała najwyższy dochód w wysokości **36,660 zł**, jednak jej całkowity zysk wyniósł **12,660 zł**, co czyni ją mniej opłacalną w porównaniu do innych wycieczek.
+
+2. **Najbardziej opłacalna wycieczka:**
+   * **Lot motoparalotnią nad Wrocławiem** okazał się najbardziej opłacalny, przynosząc zysk w wysokości **14,738 zł** przy stosunkowo niskim koszcie organizacji wynoszącym **16,500 zł**.
+
+3. **Najmniej opłacalna wycieczka:**
+   * Spacer po dachach Wrocławia, mimo że dochód z tej wycieczki wyniósł **25,120 zł**, przyniósł najmniejszy zysk – tylko **7,920 zł**, co może wskazywać na wysokie koszty organizacyjne w stosunku do osiągniętych przychodów.
+
+4. **Ogólne obserwacje:**
+   * Wszystkie wycieczki przyniosły zyski, jednak różnią się one znacznie pod względem *opłacalności*.
+   * *Wycieczki o niższych kosztach organizacyjnych wydają się bardziej dochodowe w przeliczeniu na jednostkę kosztu*, co sugeruje potencjalne obszary optymalizacji kosztów dla wycieczek o wyższych wydatkach.
+   * Analiza pokazuje, że *wycieczki o wysokim dochodzie nie zawsze generują największe zyski*. Optymalizacja kosztów organizacji może zwiększyć opłacalność oferty.
+
+# Sporządź wykres liczby obsłużonych klientów w każdym miesiącu działalności firmy, czy firma rośnie, czy podupada?
+
+```{r, echo=FALSE, warning=FALSE, results='asis'}
+library(ggplot2)
+con <- dbConnect(RMariaDB::MariaDB(),
+                 dbname = "team09",
+                 username = "team09",
+                 password = "te@mzaoq",
+                 host = "giniewicz.it")
+
+query <- "SELECT 
+  CONCAT(LPAD(MONTH(data_wyjazdu), 2, '0'), '-', YEAR(data_wyjazdu)) AS data_realizacji,
+  SUM(liczba_uczestników) AS liczba_klientów
+FROM 
+  zrealizowane 
+GROUP BY 
+  YEAR(data_wyjazdu), MONTH(data_wyjazdu)
+ORDER BY 
+  YEAR(data_wyjazdu), MONTH(data_wyjazdu) ASC;"
+
+df <- dbGetQuery(con, query)
+
+ggplot(df, aes(x = as.Date(paste0(data_realizacji, "-01"), format = "%m-%Y-%d"), 
+               y = liczba_klientów)) +
+  geom_line(size = 1, col="blue") +
+  geom_point(size = 2, col="red") +
+  labs(title = "Liczba obsłużonych klientów w każdym miesiącu działalności firmy",
+       x = "Miesiąc",
+       y = "Liczba klientów") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_x_date(date_labels = "%b %Y", date_breaks = "1 month")
+
+dbDisconnect(con)
+```
+
+**Wnioski dotyczące liczby obsłużonych klientów w każdym miesiącu**
+
+1. **Wzrosty i spadki w liczbie klientów:**
+   * Firma zanotowała znaczący wzrost liczby klientów w *miesiącach letnich*, szczególnie w **lipcu 2023**, gdzie liczba klientów osiągnęła szczyt na poziomie ponad **200**.
+   * Po miesiącach letnich nastąpił *gwałtowny spadek* liczby klientów, osiągając najniższy poziom w **październiku 2023**.
+
+2. **Sezonowość działalności:**
+   * Wyraźnie widać *sezonowość działalności firmy* – największe zainteresowanie wycieczkami przypada na **lato** (lipiec), natomiast w okresie **jesienno-zimowym** liczba klientów jest znacząco mniejsza.
+
+3. **Odbicie po okresie spadku:**
+   * W **grudniu 2023** nastąpiło pewne odbicie w liczbie klientów, co może wskazywać na *sezon świąteczny jako czas większego zainteresowania ofertą firmy*.
+
+4. **Tendencja wzrostowa na początku 2024 roku:**
+   * Na *początku 2024 roku* (styczeń-luty) firma zaczęła odnotowywać stopniowy wzrost liczby klientów, co może być pozytywnym znakiem na przyszłość.
+
+# Sprawdź, po których wycieczkach klienci wracają na kolejne, a po których mają dość i więcej ich nie widzicie. Czy są takie, które być może powinny zniknąć z oferty?
+
+```{r, echo=FALSE, warning=FALSE, results='asis'}
+library(kableExtra)
+con <- dbConnect(RMariaDB::MariaDB(),
+                 dbname = "team09",
+                 username = "team09",
+                 password = "te@mzaoq",
+                 host = "giniewicz.it")
+
+query <- "WITH WycieczkiKlienta AS (
+	SELECT
+		klienci.id_klienta,
+		zrealizowane.id_wycieczki,
+		zrealizowane.data_wyjazdu,
+		ROW_NUMBER() OVER (PARTITION BY klienci.id_klienta ORDER BY zrealizowane.data_wyjazdu) AS numer_wycieczki,
+		LEAD(zrealizowane.data_wyjazdu) OVER (PARTITION BY klienci.id_klienta ORDER BY zrealizowane.data_wyjazdu) AS data_następnej_wycieczki
+	FROM
+		klienci
+	LEFT JOIN
+		transakcje_klienci ON klienci.id_klienta = transakcje_klienci.id_klienta
+	LEFT JOIN
+		zrealizowane ON zrealizowane.id_eventu = transakcje_klienci.id_eventu
+)
+
+SELECT 
+	WycieczkiKlienta.id_wycieczki,
+	rodzaje.nazwa_wycieczki,
+	COUNT(CASE WHEN data_następnej_wycieczki IS NOT NULL THEN 1 END) AS liczba_powrotów_po_tej_wycieczce,
+	COUNT(CASE WHEN data_następnej_wycieczki IS NULL THEN 1 END) AS liczba_braku_powrotu_po_tej_wycieczce,
+	COUNT(WycieczkiKlienta.id_klienta) AS liczba_uczestników,
+	ROUND(100.00 * COUNT(CASE WHEN data_następnej_wycieczki IS NOT NULL THEN 1 END) / COUNT(WycieczkiKlienta.id_klienta), 2) AS procent_powrotów,
+	ROUND(100.00 * COUNT(CASE WHEN data_następnej_wycieczki IS NULL THEN 1 END) / COUNT(WycieczkiKlienta.id_klienta), 2) AS procent_braku_powrotu
+FROM
+	WycieczkiKlienta
+LEFT JOIN
+	rodzaje ON rodzaje.id_wycieczki = WycieczkiKlienta.id_wycieczki
+WHERE
+	WycieczkiKlienta.id_wycieczki IS NOT NULL
+GROUP BY
+	WycieczkiKlienta.id_wycieczki, rodzaje.nazwa_wycieczki
+ORDER BY
+	procent_powrotów DESC;"
+
+df <- dbGetQuery(con, query)
+
+df %>%
+  head(10) %>%  
+  kbl(
+    caption = "Powroty klientów po wycieczkach",
+    col.names = c("ID Wycieczki", "Nazwa Wycieczki", "Liczba Powrotów", "Liczba Braku Powrotu", 
+                  "Liczba Uczestników", "Procent Powrotów", "Procent Braku Powrotu")
+  ) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover", "condensed"))
+
+dbDisconnect(con)
+```
+
+**Wnioski dotyczące powrotów klientów po wycieczkach**
+
+1. **Wycieczki z najwyższym procentem powrotów:**
+   * **Symulacja inwazji smoków** osiągnęła najwyższy procent powrotów (**65.71%**), co oznacza, że klienci byli *najbardziej zadowoleni z tej wycieczki* i chętniej wracali na kolejne.
+   * **Lot motoparalotnią nad Wrocławiem** również cieszył się dużym zainteresowaniem wśród klientów, z procentem powrotów na poziomie **60.20%**.
+
+2. **Wycieczki z najniższym procentem powrotów:**
+   * **Spacer po dachach Wrocławia** osiągnął najniższy procent powrotów (**28.13%**), co może sugerować, że ta wycieczka *nie spełnia oczekiwań klientów* lub jest mniej atrakcyjna w porównaniu do innych ofert.
+   * **Skok na bungee z Mostu Grunwaldzkiego** również cechował się niskim procentem powrotów (**35.62%**), co wskazuje na możliwe niedopasowanie tej wycieczki do preferencji klientów.
+
+3. **Analiza liczby uczestników i powrotów:**
+   * **Tyrolka z Mostu Zwierzynieckiego** miała największą liczbę uczestników, ale tylko **42.11%** z nich wróciło na kolejne wycieczki. Może to sugerować, że *choć wycieczka przyciąga dużą liczbę klientów, nie buduje lojalności wśród uczestników*.
+   * Wycieczki z mniejszą liczbą uczestników, takie jak **Podwodna ekspedycja w Odrze**, osiągają wyższy procent powrotów w porównaniu do większych grup.
+
+4. **Wycieczki, które mogą wymagać poprawy:**
+   * **Spacer po dachach Wrocławia** i **Skok na bungee z Mostu Grunwaldzkiego** mają wysokie wskaźniki braku powrotów (71.88% i 64.38% odpowiednio). Może to oznaczać, że warto zbadać, co w tych wycieczkach zniechęca klientów, i wprowadzić odpowiednie zmiany.
+
+5. **Ogólne obserwacje:**
+   * Wycieczki takie jak **Symulacja inwazji smoków** i **Lot motoparalotnią nad Wrocławiem** są dobrze oceniane przez klientów i warto je dalej promować.
+   * Należy rozważyć poprawę jakości lub modyfikację ofert takich jak **Spacer po dachach Wrocławia** i **Skok na bungee z Mostu Grunwaldzkiego**, aby zwiększyć ich atrakcyjność i budować lojalność klientów.
+   * Oferta firmy wymaga optymalizacji w niektórych obszarach, a inwestycja w poprawę mniej popularnych wycieczek może przełożyć się na większą lojalność klientów.
+
+# Jak cena wycieczki wpływa na częstotliwość jej wyboru przez klientów?
+```{r, echo=FALSE, warning=FALSE, results='asis'}
+library(kableExtra)
+con <- dbConnect(RMariaDB::MariaDB(),
+                 dbname = "team09",
+                 username = "team09",
+                 password = "te@mzaoq",
+                 host = "giniewicz.it")
+
+query <- "SELECT 
+   rodzaje.koszt_udzialu AS cena_wycieczki,
+   SUM(zrealizowane.liczba_uczestników) AS liczba_uczestników,
+   ROUND(SUM(zrealizowane.liczba_uczestników) * 100.0 / (SELECT SUM(liczba_uczestników) FROM zrealizowane), 2) AS procent_uczestników
+FROM 
+   zrealizowane
+JOIN 
+   rodzaje ON zrealizowane.id_wycieczki = rodzaje.id_wycieczki
+GROUP BY 
+   rodzaje.koszt_udzialu
+ORDER BY 
+   liczba_uczestników DESC;"
+
+df <- dbGetQuery(con, query)
+
+df %>%
+  kbl(
+    caption = "Wpływ ceny wycieczki na liczbę uczestników",
+    col.names = c("Cena Wycieczki", "Liczba Uczestników", "Procent Uczestników")
+  ) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover", "condensed"))
+
+dbDisconnect(con)
+```
+
+**Wnioski dotyczące wpływu ceny wycieczki na jej popularność**
+
+1. **Największa liczba uczestników przy niskiej cenie:**
+   * Wycieczki z ceną **150 zł** cieszyły się największym zainteresowaniem, gromadząc **209 uczestników**, co stanowiło **38.85%** wszystkich klientów. Sugeruje to, że niskie ceny przyciągają większą liczbę uczestników.
+
+2. **Spadek liczby uczestników wraz ze wzrostem ceny:**
+   * Wraz ze wzrostem ceny liczba uczestników wycieczek wyraźnie spada. Na przykład wycieczki za **325 zł** przyciągnęły już tylko **98 uczestników** (18.22%), a wycieczki za **1560 zł** – jedynie **24 uczestników** (4.46%).
+
+3. **Niska popularność najdroższych wycieczek:**
+   * Wycieczki za **1560 zł** są najmniej popularne, co wskazuje, że wysoka cena działa zniechęcająco na większość klientów.
+
+4. **Podobna popularność w średnich przedziałach cenowych:**
+   * Wycieczki za **300 zł**, **400 zł** i **500 zł** przyciągnęły podobną liczbę uczestników, co wskazuje na istnienie pewnego poziomu akceptacji cenowego w tym zakresie.
+
+5. **Ogólne obserwacje:**
+   * Wycieczki o cenie **150 zł** są najbardziej popularne i przyciągają znaczną część klientów. Warto skupić się na ich dalszej promocji i rozbudowie oferty w tej kategorii cenowej.
+   * Dla droższych wycieczek (np. 1560 zł) warto przeanalizować, czy oferowana jakość lub wyjątkowość wycieczki uzasadniają cenę, a także rozważyć wprowadzenie *promocji* w celu zwiększenia zainteresowania.
+   * Wycieczki w średnich przedziałach cenowych (300–500 zł) przyciągają stabilną liczbę uczestników. Warto prowadzić badania opinii klientów, aby lepiej dopasować ofertę do ich oczekiwań.
+   * Cena jest **kluczowym czynnikiem** wpływającym na popularność wycieczek. Największą grupę klientów przyciągają tańsze oferty, natomiast w przypadku droższych wycieczek należy skupić się na podkreślaniu ich wartości lub wprowadzeniu zachęt cenowych.
+
+# Którzy pracownicy obsługujący wycieczki generują największą ilość rezerwacji wycieczek przez klientów?
+
+```{r, echo=FALSE, warning=FALSE, results='asis'}
+library(kableExtra)
+con <- dbConnect(RMariaDB::MariaDB(),
+                 dbname = "team09",
+                 username = "team09",
+                 password = "te@mzaoq",
+                 host = "giniewicz.it")
+
+query <- "SELECT 
+   pracownicy.id_pracownika,
+   pracownicy.imię,
+   pracownicy.nazwisko,
+   COUNT(zrealizowane.id_eventu) AS liczba_wycieczek,
+   SUM(zrealizowane.liczba_uczestników) AS liczba_uczestników
+FROM 
+   zrealizowane
+JOIN 
+   pracownicy ON zrealizowane.id_pracownika = pracownicy.id_pracownika
+GROUP BY 
+   pracownicy.id_pracownika, pracownicy.nazwisko
+ORDER BY 
+   liczba_wycieczek DESC, liczba_uczestników DESC;"
+
+df <- dbGetQuery(con, query)
+
+df %>%
+  kbl(
+    caption = "Pracownicy generujący największą ilość rezerwacji",
+    col.names = c("ID Pracownika", "Imię", "Nazwisko", "Liczba Wycieczek", "Liczba Uczestników")
+  ) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover", "condensed"))
+
+dbDisconnect(con)
+```
+
+**Wnioski dotyczące pracowników obsługujących wycieczki**
+
+1. **Pracownik obsługujący największą liczbę wycieczek:**
+   * **Maks Kuban** obsłużył najwięcej wycieczek (*10*) oraz przyciągnął największą liczbę uczestników (*297*). Jego wyniki wskazują na efektywną organizację i wysoką popularność obsługiwanych wycieczek.
+
+2. **Pozostali pracownicy:**
+   * **Błażej Bakun** zorganizował *5* wycieczek, obsługując łącznie *168* uczestników, co również świadczy o dobrych wynikach w swojej roli.
+   * **Nataniel Wiak** obsłużył najmniejszą liczbę wycieczek (*2*) i miał najmniejszą liczbę uczestników (*73*), co może wskazywać na potrzebę zwiększenia jego zaangażowania w organizację wycieczek.
+
+3. **Ogólne obserwacje:**
+   * Maksymalna liczba obsłużonych uczestników przez jednego pracownika (297 przez Maksa Kubana) pokazuje, że odpowiednie zaangażowanie i organizacja mogą znacząco zwiększyć liczbę uczestników przypadających na pracownika.
+   * Istnieje duża różnica między liczbą wycieczek obsługiwanych przez Maksa Kubana a pozostałych pracowników, co sugeruje, że warto przeanalizować, czy wszyscy pracownicy mają równe możliwości i obciążenie obowiązkami.
+   * Warto nagrodzić Maksa Kubana za jego wyniki i przeanalizować jego metody pracy, aby wdrożyć je jako standard w całym zespole.
+   * Pracownicy, tacy jak Nataniel Wiak, mogą potrzebować dodatkowego wsparcia lub szkolenia, aby zwiększyć liczbę obsługiwanych wycieczek.
+
+# W jakim przedziale wiekowym są klienci najczęściej decydujący się na skorzystanie z usług firmy?
+
+```{r, echo=FALSE, warning=FALSE, results='asis'}
+library(kableExtra)
+con <- dbConnect(RMariaDB::MariaDB(),
+                 dbname = "team09",
+                 username = "team09",
+                 password = "te@mzaoq",
+                 host = "giniewicz.it")
+
+query <- "SELECT
+	CASE
+		WHEN klienci.wiek BETWEEN 0 AND 20 THEN '0-20'
+		WHEN klienci.wiek BETWEEN 21 AND 30 THEN '21-30'
+		WHEN klienci.wiek BETWEEN 31 AND 40 THEN '31-40'
+		WHEN klienci.wiek BETWEEN 41 AND 50 THEN '41-50'
+		WHEN klienci.wiek BETWEEN 51 AND 60 THEN '51-60'
+		WHEN klienci.wiek BETWEEN 61 AND 70 THEN '61-70'
+		WHEN klienci.wiek BETWEEN 71 AND 80 THEN '71-80'
+		WHEN klienci.wiek > 80 THEN 'starsi'
+	END AS przedział_wiekowy,
+	COUNT(DISTINCT transakcje_klienci.id_klienta) AS liczba_klientów
+FROM
+	klienci
+JOIN
+	transakcje_klienci
+ON
+	klienci.id_klienta = transakcje_klienci.id_klienta
+GROUP BY
+	przedział_wiekowy
+ORDER BY 
+	liczba_klientów DESC;"
+
+df <- dbGetQuery(con, query)
+
+df %>%
+  kbl(
+    caption = "Przedziały wiekowe klientów korzystających z usług firmy",
+    col.names = c("Przedział Wiekowy", "Liczba Klientów")
+  ) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover", "condensed"))
+
+dbDisconnect(con)
+```
+
+**Wnioski dotyczące przedziałów wiekowych klientów korzystających z usług firmy**
+
+1. **Najczęściej korzystający przedział wiekowy:**
+   * Najwięcej klientów firmy pochodzi z przedziału wiekowego **41-50 lat** (52 osoby). To grupa wiekowa, która najchętniej korzysta z usług firmy, co może sugerować, że oferta jest szczególnie atrakcyjna dla osób w tym wieku.
+
+2. **Inne popularne grupy wiekowe:**
+   * **31-40 lat** to kolejny znaczący przedział wiekowy, obejmujący **51 klientów**, co pokazuje, że młodsi dorośli również stanowią dużą część klienteli firmy.
+   * **71-80 lat** (48 klientów) wskazuje na zainteresowanie ofertą firmy również przez seniorów, co jest istotnym sygnałem o różnorodności klientów.
+
+3. **Mniej popularne przedziały wiekowe:**
+   * Przedziały wiekowe **21-30 lat** i **61-70 lat** (po 44 klientów w każdym) wskazują na umiarkowane zainteresowanie ofertą firmy w tych grupach.
+   * **51-60 lat** (39 klientów) oraz **0-20 lat** (12 klientów) to najmniej liczne grupy wiekowe, co może sugerować, że oferta firmy jest mniej dopasowana do potrzeb młodzieży oraz starszych pracujących.
+
+4. **Ogólne obserwacje:**
+   * Oferta firmy wydaje się być najlepiej dopasowana do grup wiekowych **41-50 lat** oraz **31-40 lat**, które razem stanowią znaczną część klientów.
+   * Grupa wiekowa **71-80 lat** wskazuje na zainteresowanie usługami firmy wśród seniorów, co może być okazją do rozwinięcia oferty skierowanej do tej grupy.
+   * Warto zastanowić się nad możliwością zwiększenia atrakcyjności oferty dla osób młodszych (0-20 lat) oraz starszych pracujących (51-60 lat), aby poszerzyć bazę klientów.
+
+# Czy posiadana przez klienta zniżka sprawia, że wybiera on dane wycieczki częściej niż osoby bez zniżek?
+
+```{r, echo=FALSE, warning=FALSE, results='asis'}
+library(kableExtra)
+con <- dbConnect(RMariaDB::MariaDB(),
+                 dbname = "team09",
+                 username = "team09",
+                 password = "te@mzaoq",
+                 host = "giniewicz.it")
+
+query <- "SELECT
+	CASE
+		WHEN klienci.id_zniżki IS NULL THEN 'brak zniżki'
+		ELSE 'ze zniżką'
+	END AS typ_klienta,
+	COUNT(transakcje_klienci.id_klienta) AS liczba_transakcji,
+	COUNT(DISTINCT transakcje_klienci.id_klienta) AS liczba_klientów,
+	ROUND(COUNT(transakcje_klienci.id_klienta) * 1.0 / COUNT(DISTINCT transakcje_klienci.id_klienta),2) AS średnia_transakcji_na_klienta
+FROM
+	transakcje_klienci
+JOIN
+	klienci
+ON transakcje_klienci.id_klienta = klienci.id_klienta
+LEFT JOIN
+	zniżki ON zniżki.id_zniżki = klienci.id_zniżki
+GROUP BY
+	CASE
+		WHEN klienci.id_zniżki IS NULL THEN 'brak zniżki'
+		ELSE 'ze zniżką'
+	END
+ORDER BY 
+	średnia_transakcji_na_klienta DESC;"
+
+df <- dbGetQuery(con, query)
+
+df %>%
+  kbl(
+    caption = "Wpływ posiadania zniżki na częstotliwość wyboru wycieczek",
+    col.names = c("Typ Klienta", "Liczba Transakcji", "Liczba Klientów", "Średnia Transakcji na Klienta")
+  ) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover", "condensed"))
+
+dbDisconnect(con)
+```
+
+**Wnioski dotyczące wpływu zniżek na częstotliwość wyboru wycieczek przez klientów**
+
+1. **Średnia liczba transakcji na klienta:**
+   * Klienci ze zniżką dokonali średnio **1.86 transakcji**, co jest bardzo zbliżone do średniej liczby transakcji klientów bez zniżek (**1.85 transakcji**). Wynik ten sugeruje, że posiadanie zniżki nie wpływa znacząco na liczbę wycieczek wybieranych przez klientów.
+
+2. **Łączna liczba transakcji i klientów:**
+   * Klienci bez zniżek wygenerowali znacząco więcej transakcji (**415**) w porównaniu do klientów posiadających zniżki (**123**). Różnica ta wynika głównie z większej liczby klientów bez zniżek (**224** wobec **66** ze zniżkami).
+
+3. **Ogólne obserwacje:**
+   * Mimo że klienci bez zniżek generują większą liczbę transakcji, średnia liczba transakcji na klienta jest niemal identyczna dla obu grup. Może to sugerować, że posiadanie zniżki nie jest kluczowym czynnikiem wpływającym na decyzję o częstszym korzystaniu z wycieczek.
+   * Zniżki mogą być skuteczne w przyciąganiu nowych klientów, jednak analiza wskazuje, że ich wpływ na lojalność lub częstotliwość rezerwacji jest minimalny.
+   * Posiadanie zniżki nie wpływa znacząco na częstotliwość rezerwacji wycieczek, jednak może pomóc w przyciągnięciu nowych klientów. Dalsza optymalizacja oferty może przynieść lepsze rezultaty.
+
+# Która z wycieczek cieszyła się największym zainteresowaniem wśród klientów, jeśli chodzi o wielokrotne uczestnictwo?
+
+```{r, echo=FALSE, warning=FALSE, results='asis'}
+library(kableExtra)
+con <- dbConnect(RMariaDB::MariaDB(),
+                 dbname = "team09",
+                 username = "team09",
+                 password = "te@mzaoq",
+                 host = "giniewicz.it")
+
+query <- "WITH WycieczkiKlienta AS (
+	SELECT
+		klienci.id_klienta,
+		zrealizowane.id_wycieczki,
+		zrealizowane.data_wyjazdu,
+		ROW_NUMBER() OVER (PARTITION BY klienci.id_klienta, zrealizowane.id_wycieczki ORDER BY zrealizowane.data_wyjazdu) AS numer_wycieczki,
+		LEAD(zrealizowane.data_wyjazdu) OVER (PARTITION BY klienci.id_klienta ORDER BY zrealizowane.data_wyjazdu) AS data_następnej_wycieczki
+	FROM
+		klienci
+	LEFT JOIN
+		transakcje_klienci ON klienci.id_klienta = transakcje_klienci.id_klienta
+	LEFT JOIN
+		zrealizowane ON zrealizowane.id_eventu = transakcje_klienci.id_eventu
+),
+
+PonowneWycieczki AS (
+	SELECT
+		id_wycieczki,
+		id_klienta
+	FROM
+		WycieczkiKlienta
+	WHERE
+		numer_wycieczki > 1
+)
+
+SELECT
+	rodzaje.id_wycieczki,
+	rodzaje.nazwa_wycieczki,
+	COALESCE(COUNT(PonowneWycieczki.id_klienta), 0) AS liczba_ponownego_uczestnictwa
+FROM
+	rodzaje
+LEFT JOIN
+	PonowneWycieczki ON rodzaje.id_wycieczki = PonowneWycieczki.id_wycieczki
+GROUP BY
+	rodzaje.id_wycieczki
+ORDER BY
+	liczba_ponownego_uczestnictwa DESC;"
+
+df <- dbGetQuery(con, query)
+
+df %>%
+  kbl(
+    caption = "Wycieczki o największej liczbie ponownego uczestnictwa",
+    col.names = c("ID Wycieczki", "Nazwa Wycieczki", "Liczba Ponownego Uczestnictwa")
+  ) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover", "condensed"))
+
+dbDisconnect(con)
+```
+
+**Wnioski dotyczące wycieczek cieszących się największym zainteresowaniem wśród klientów w kontekście wielokrotnego uczestnictwa**
+
+1. **Najpopularniejsza wycieczka pod względem wielokrotnego uczestnictwa:**
+   * **Tyrolka z Mostu Zwierzynieckiego** osiągnęła największą liczbę ponownych uczestnictw – **42**. To zdecydowanie najpopularniejsza wycieczka w kontekście powracających klientów, co sugeruje, że jest szczególnie atrakcyjna i dobrze oceniana.
+
+2. **Inne wycieczki z powracającymi klientami:**
+   * **Lot motoparalotnią nad Wrocławiem** zajmuje drugie miejsce z liczbą ponownych uczestnictw wynoszącą **12**, co wskazuje na jej popularność, choć na mniejszą skalę niż w przypadku Tyrolki.
+   * Wycieczki takie jak **Skok na bungee z Mostu Grunwaldzkiego**, **Symulacja inwazji smoków** oraz **Spacer po dachach Wrocławia** przyciągnęły po **4 ponownych uczestników** każda. Oznacza to, że są atrakcyjne, ale ich potencjał w generowaniu lojalności jest ograniczony.
+
+3. **Wycieczka bez powracających klientów:**
+   * **Podwodna ekspedycja w Odrze** nie zanotowała żadnego ponownego uczestnictwa, co może wskazywać na brak wystarczającej atrakcyjności lub konieczność poprawy wrażeń z tej wycieczki.
+
+4. **Ogólne obserwacje:**
+   * Wycieczki o charakterze dynamicznym, takie jak Tyrolka z Mostu Zwierzynieckiego, wydają się bardziej angażujące i zachęcają klientów do powrotów.
+   * Wycieczki, które nie przyciągają ponownych uczestników, mogą wymagać analizy i modyfikacji, aby lepiej odpowiadać na potrzeby klientów.
+   * Należy skupić się na dalszej promocji i utrzymaniu wysokiego standardu wycieczki **Tyrolka z Mostu Zwierzynieckiego**, która zdecydowanie wyróżnia się pod względem ponownych uczestnictw.
+   * Wycieczki takie jak **Podwodna ekspedycja w Odrze** wymagają analizy opinii klientów, aby zidentyfikować powody braku powrotów i wdrożyć ewentualne zmiany.
+   * Firma powinna inwestować w rozwój i promocję wycieczek, które przyciągają powracających klientów, oraz analizować te, które nie generują lojalności.
