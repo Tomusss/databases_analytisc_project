@@ -1,0 +1,121 @@
+
+CREATE TABLE klienci
+(
+  id_klienta     INT         NOT NULL AUTO_INCREMENT,
+  imię           VARCHAR(45) NULL    ,
+  nazwisko       VARCHAR(45) NULL    ,
+  numer_telefonu VARCHAR(20) NULL    ,
+  mail           VARCHAR(45) NULL    ,
+  numer_1        VARCHAR(20) NULL    ,
+  numer_2        VARCHAR(20) NULL    ,
+  miasto         VARCHAR(45) NULL    ,
+  kod_pocztowy   VARCHAR(6)  NULL    ,
+  adres          VARCHAR(45) NULL    ,
+  id_zniżki      TINYINT     NULL    ,
+  wiek           INT         NULL    ,
+  PRIMARY KEY (id_klienta)
+);
+
+CREATE TABLE koszty_organizacji
+(
+  id_płatności TINYINT     NOT NULL AUTO_INCREMENT,
+  id_wycieczki TINYINT     NOT NULL,
+  nazwa_kosztu VARCHAR(45) NULL    ,
+  koszt        DECIMAL     NULL    ,
+  PRIMARY KEY (id_płatności)
+);
+
+CREATE TABLE pracownicy
+(
+  id_pracownika     TINYINT     NOT NULL AUTO_INCREMENT,
+  imię              VARCHAR(45) NULL    ,
+  nazwisko          VARCHAR(45) NULL    ,
+  data_zatrudnienia DATE        NULL    ,
+  aktywny           TINYINT     NULL    ,
+  działy            VARCHAR(45) NULL    ,
+  pensja            DECIMAL     NULL    ,
+  PRIMARY KEY (id_pracownika)
+);
+
+CREATE TABLE rodzaje
+(
+  id_wycieczki           TINYINT      NOT NULL AUTO_INCREMENT,
+  nazwa_wycieczki        VARCHAR(45)  NULL    ,
+  opis                   VARCHAR(600) NULL    ,
+  max_liczba_uczestników INT          NULL    ,
+  min_liczba_uczestników INT          NULL    ,
+  koszt_udziału          DECIMAL      NULL    ,
+  koszt_organizacji      DECIMAL      NULL    ,
+  kontakt_do_bliskich    TINYINT      NULL    ,
+  PRIMARY KEY (id_wycieczki)
+);
+
+CREATE TABLE transakcje_firma
+(
+  id_transakcji    TINYINT NOT NULL AUTO_INCREMENT,
+  id_eventu        TINYINT NOT NULL,
+  czy_zrealizowany TINYINT NULL    ,
+  data_płatności   DATE    NULL    ,
+  PRIMARY KEY (id_transakcji)
+);
+
+CREATE TABLE transakcje_klienci
+(
+  id_transakcji    INT         NOT NULL AUTO_INCREMENT,
+  id_klienta       INT         NOT NULL,
+  id_eventu        TINYINT     NULL    ,
+  koszt_udziału    DECIMAL     NULL    ,
+  rodzaj_płatności VARCHAR(30) NULL    ,
+  czy_zapłacono    TINYINT     NULL     DEFAULT 0,
+  data_płatności   DATE        NULL    ,
+  PRIMARY KEY (id_transakcji)
+);
+
+CREATE TABLE zniżki
+(
+  id_zniżki    TINYINT     NOT NULL AUTO_INCREMENT,
+  nazwa_zniżki VARCHAR(20) NULL    ,
+  procent      TINYINT     NULL    ,
+  PRIMARY KEY (id_zniżki)
+);
+
+CREATE TABLE zrealizowane
+(
+  id_eventu          TINYINT NOT NULL AUTO_INCREMENT,
+  id_wycieczki       TINYINT NOT NULL,
+  data_wyjazdu       DATE    NULL    ,
+  liczba_uczestników INT     NULL    ,
+  id_pracownika      TINYINT NOT NULL,
+  PRIMARY KEY (id_eventu, id_wycieczki)
+);
+
+ALTER TABLE koszty_organizacji
+  ADD CONSTRAINT FK_rodzaje_TO_koszty_organizacji
+    FOREIGN KEY (id_wycieczki)
+    REFERENCES rodzaje (id_wycieczki);
+
+ALTER TABLE transakcje_klienci
+  ADD CONSTRAINT FK_klienci_TO_transakcje_klienci
+    FOREIGN KEY (id_klienta)
+    REFERENCES klienci (id_klienta);
+
+ALTER TABLE zrealizowane
+  ADD CONSTRAINT FK_rodzaje_TO_zrealizowane
+    FOREIGN KEY (id_wycieczki)
+    REFERENCES rodzaje (id_wycieczki);
+
+ALTER TABLE klienci
+  ADD CONSTRAINT FK_zniżki_TO_klienci
+    FOREIGN KEY (id_zniżki)
+    REFERENCES zniżki (id_zniżki);
+
+ALTER TABLE zrealizowane
+  ADD CONSTRAINT FK_pracownicy_TO_zrealizowane
+    FOREIGN KEY (id_pracownika)
+    REFERENCES pracownicy (id_pracownika);
+
+ALTER TABLE transakcje_firma
+  ADD CONSTRAINT FK_zrealizowane_TO_transakcje_firma
+    FOREIGN KEY (id_eventu)
+    REFERENCES zrealizowane (id_eventu);
+
