@@ -14,5 +14,3 @@ PYTANIA
 7. Czy posiadana przez klienta zniżka sprawia, że wybiera on dane wycieczki częściej niż osoby bez zniżek?
 
 8. Która z wycieczek cieszyła się największym zainteresowaniem wśród klientów, jeśli chodzi o wielokrotne uczestnictwo?
-
-9. Jak zmienia się średnia liczba uczestników wycieczek w różnych porach roku?
