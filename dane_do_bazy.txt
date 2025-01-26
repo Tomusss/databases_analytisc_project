@@ -1,4 +1,5 @@
 Dane do połączenia się z bazą: 
+host: giniewicz.git
 login: team09
 hasło: te@mzaoq
 baza: team09
